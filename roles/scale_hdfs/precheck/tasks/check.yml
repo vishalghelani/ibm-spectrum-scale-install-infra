@@ -1,0 +1,122 @@
+---
+- include_tasks: prepare_env.yml
+  
+- debug:
+   msg: "transparency_33_enabled: {{ transparency_33_enabled|bool }}"
+
+- debug:
+   msg: "transparency_322_enabled: {{ transparency_322_enabled|bool }}"
+
+- name: global_var | Initialize
+  set_fact:
+   scale_hdfs_cluster: []
+   scale_protocol_nodes_list: []
+   export_cesip_length: ''
+
+- name: check | Collect all protocol nodes
+  set_fact:
+   scale_protocol_nodes_list: "{{ scale_protocol_nodes_list + [hostvars[hosts]['ansible_fqdn']] }}"
+  when: hostvars[hosts]['is_protocol_node'] is defined and hostvars[hosts]['is_protocol_node']|bool
+  with_items:
+   - "{{ ansible_play_hosts }}"
+  loop_control:
+     loop_var: hosts
+  delegate_to: localhost
+  run_once: true
+
+- name: check | initializing scale_hdfs_cluster
+  set_fact:
+    scale_hdfs_cluster: "{{ item }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: check | verify hdfs cluster length
+  set_fact:
+     hdfs_cluster_length: "{{ scale_hdfs_clusters| length }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: check | get server node
+  set_fact:
+     server: "{{ scale_hdfs_cluster.namenodes[0] }}"
+  delegate_to: localhost
+  run_once: true
+
+- fail:
+    msg: "HDFS is not supported on {{ ansible_distribution }} OS."
+  when: ansible_distribution not in hdfs_os_distribution
+  delegate_to: "{{ server }}"
+  run_once: true
+
+- name: check | verify cesip address
+  set_fact:
+     export_cesip_length: "{{ scale_protocols.export_ip_pool| length }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: check | calculate cesip when object is enabled
+  set_fact:
+     export_cesip_length: "{{ export_cesip_length|int - 1 }}"
+  when:
+    - scale_protocols.object is defined
+    - scale_protocols.object|bool
+  delegate_to: localhost
+  run_once: true
+
+- name: Check | Check Namenodes running status
+  shell: /usr/lpp/mmfs/hadoop/sbin/mmhdfs hdfs-nn status | grep 'namenode pid is' | wc -l
+  register: verify_namenodes
+  delegate_to: "{{ server }}"
+  run_once: true
+
+- fail:
+    msg: "Not sufficient CESIPs are assigned in export_ip_pool for HDFS clusters, please add more CESIP and retry."
+  when: 
+    - hdfs_cluster_length|int > export_cesip_length|int
+  delegate_to: localhost
+  run_once: true
+
+- name: check | Check if hdfs is enabled
+  assert:
+   that:
+   - scale_protocols.hdfs|bool
+   fail_msg: "HDFS is not enabled"
+
+- name: check |  Check if HDFS required information has been supplied.
+  assert:
+   that:
+   - hdfs_cluster is defined
+   - hdfs_cluster| length > 0
+   - hdfs_cluster.name is defined
+   - hdfs_cluster.name| length > 0
+   - hdfs_cluster.filesystem is defined
+   - hdfs_cluster.filesystem| length > 0
+   - hdfs_cluster.namenodes is defined
+   - hdfs_cluster.namenodes| length > 0
+   - hdfs_cluster.datanodes is defined
+   - hdfs_cluster.datanodes| length > 0
+   - hdfs_cluster.datadir is defined
+   - hdfs_cluster.datadir| length > 0
+   fail_msg: "HDFS required parameter information is not defined."
+   success_msg: "HDFS required information is defined."
+  with_items:
+   - "{{ scale_hdfs_cluster }}"
+  loop_control:
+     loop_var: hdfs_cluster
+  run_once: true
+  delegate_to: localhost
+
+- name: check | Verify JAVA_HOME
+  include_tasks: java_home.yml
+  loop: "{{ scale_hdfs_clusters }}"
+  loop_control:
+     loop_var: hdfs_clusters
+
+- debug:
+    msg: "HDFS Precheck ok on {{ scale_hdfs_cluster.name }} cluster."
+  when: scale_hdfs_clusters|length > 1
+
+- debug:
+    msg: "HDFS Precheck ok"
+  when: scale_hdfs_clusters|length == 1
+

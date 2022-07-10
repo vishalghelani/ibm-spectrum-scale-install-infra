@@ -1,0 +1,31 @@
+---
+- name: upgrade | Initialize
+  set_fact:
+   scale_hdfs_url: ""
+
+- name: upgrade | hdfs path on rhel7
+  set_fact:
+   scale_hdfs_url: "{{ hdfs_rpm_path_rhel }}"
+  when: ansible_distribution in scale_rhel_distribution and ansible_distribution_major_version == '7'
+
+- name: upgrade | hdfs path on rhel8
+  set_fact:
+   scale_hdfs_url: "{{ hdfs_rpm_path_rhel }}"
+  when: ansible_distribution in scale_rhel_distribution and ansible_distribution_major_version == '8'
+
+- name: upgrade | Configure hdfs YUM repository
+  yum_repository:
+    name: spectrum-scale-hdfs
+    description: IBM Spectrum Scale (hdfs)
+    baseurl: "{{ scale_install_repository_url }}{{ scale_hdfs_url }}"
+    gpgcheck: "{{ scale_install_gpgcheck }}"
+    repo_gpgcheck: no
+    state: present
+  notify: yum-clean-metadata
+  when:
+    - ansible_pkg_mgr == 'yum' or ansible_pkg_mgr == 'dnf'
+    - scale_install_repository_url != 'existing'
+
+- name: upgrade | Add GPFS hdfs packages to list
+  set_fact:
+    scale_upgrade_all_packages: "{{ scale_hdfs_packages }}"

@@ -1,0 +1,7 @@
+---
+- name: upgrade | Upgrade GPFS hdfs packages
+  yum:
+   name: "{{ scale_upgrade_all_packages }}"
+   state: latest
+   update_only: yes
+   disable_gpg_check: "{{ scale_disable_gpgcheck }}"
