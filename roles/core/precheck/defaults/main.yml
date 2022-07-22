@@ -73,6 +73,7 @@ scale_install_add_rpms_pre502:
 ## List of GPFS RPMs to install for building Linux kernel extension from source
 scale_install_gplsrc_rpms:
   - gpfs.gpl*
+  - gpfs.gplbin*
 
 
 ## Define this variable to install Linux kernel extension from pre-built RPM
